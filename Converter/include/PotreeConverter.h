@@ -115,10 +115,11 @@ inline vector<Attribute> parseExtraAttributes(LasHeader& header) {
 }
 
 
-inline vector<Attribute> computeOutputAttributes(LasHeader& header) {
+inline vector<Attribute> computeOutputAttributes(LasHeader& header, bool include_index) {
 	auto format = header.pointDataFormat;
 
 	Attribute xyz("position", 12, 3, 4, AttributeType::INT32);
+	Attribute pcindex("pc_index", 4, 1, 4, AttributeType::INT32);
 	Attribute intensity("intensity", 2, 1, 2, AttributeType::UINT16);
 	Attribute returns("returns", 1, 1, 1, AttributeType::UINT8);
 	Attribute returnNumber("return number", 1, 1, 1, AttributeType::UINT8);
@@ -171,10 +172,14 @@ inline vector<Attribute> computeOutputAttributes(LasHeader& header) {
 
 	list.insert(list.end(), extraAttributes.begin(), extraAttributes.end());
 
+	if (include_index) {
+		list.insert(list.begin() + 1, pcindex);
+	}
+
 	return list;
 }
 
-inline Attributes computeOutputAttributes(vector<Source>& sources, vector<string> requestedAttributes) {
+inline Attributes computeOutputAttributes(vector<Source>& sources, vector<string> requestedAttributes, bool include_index=false) {
 	// TODO: a bit wasteful to iterate over source files and load headers twice
 
 	Vector3 scaleMin = { Infinity, Infinity, Infinity };
@@ -190,11 +195,11 @@ inline Attributes computeOutputAttributes(vector<Source>& sources, vector<string
 	{
 		mutex mtx;
 		auto parallel = std::execution::par;
-		for_each(parallel, sources.begin(), sources.end(), [&mtx, &sources, &scaleMin, &min, &max, requestedAttributes, &fullAttributeList, &acceptedAttributeNames](Source source) {
+		for_each(parallel, sources.begin(), sources.end(), [&mtx, &sources, &scaleMin, &min, &max, requestedAttributes, &fullAttributeList, &acceptedAttributeNames, &include_index](Source source) {
 
 			auto header = loadLasHeader(source.path);
 
-			vector<Attribute> attributes = computeOutputAttributes(header);
+			vector<Attribute> attributes = computeOutputAttributes(header, include_index);
 
 			mtx.lock();
 

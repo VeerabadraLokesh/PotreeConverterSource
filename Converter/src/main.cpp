@@ -499,7 +499,7 @@ int main(int argc, char** argv) {
 		options.name = name;
 	}
 
-	auto outputAttributes = computeOutputAttributes(sources, options.attributes);
+	auto outputAttributes = computeOutputAttributes(sources, options.attributes, true);
 	cout << toString(outputAttributes);
 
 	auto stats = computeStats(sources);

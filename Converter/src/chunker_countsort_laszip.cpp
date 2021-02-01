@@ -512,7 +512,7 @@ namespace chunker_countsort_laszip {
 
 				attributeOffset += attribute.size;
 
-				if (attribute.name == "position") {
+				if (attribute.name == "position" || attribute.name == "pc_index") {
 					continue;
 				}
 
@@ -766,6 +766,11 @@ namespace chunker_countsort_laszip {
 						aPosition->max.z = std::max(aPosition->max.z, z);
 					}
 
+					{
+						__uint32_t pc_index = __uint32_t(task->firstPoint + i);
+						memcpy(data + offset + 12, &pc_index, 4);
+					}
+
 					// copy other attributes
 					for (auto& handler : attributeHandlers) {
 						handler(offset);
@@ -921,8 +926,11 @@ namespace chunker_countsort_laszip {
 			int64_t numRead = 0;
 
 			vector<Source> tmpSources = { source };
-			Attributes inputAttributes = computeOutputAttributes(tmpSources, {});
+			Attributes inputAttributes = computeOutputAttributes(tmpSources, {}, false);
 
+			outputAttributes.get("pc_index")->min.x = 0;
+			outputAttributes.get("pc_index")->max.x = pointsLeft;
+			
 			while (pointsLeft > 0) {
 
 				int64_t numToRead;
