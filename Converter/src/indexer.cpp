@@ -190,7 +190,7 @@ namespace indexer{
 		};
 
 		string targetDir = this->targetDir;
-		TaskPool<LoadTask> pool(16, [targetDir](shared_ptr<LoadTask> task) {
+		TaskPool<LoadTask> pool(numSampleThreads(), [targetDir](shared_ptr<LoadTask> task) {
 			string octreePath = targetDir + "/tmpChunkRoots.bin";
 
 			shared_ptr<Node> node = task->node;
@@ -1543,6 +1543,8 @@ void doIndexing(string targetDir, State& state, Options& options, Sampler& sampl
 
 	pool.waitTillEmpty();
 	pool.close();
+
+	logger::INFO("reloading chunks");
 
 	indexer.reloadChunkRoots();
 

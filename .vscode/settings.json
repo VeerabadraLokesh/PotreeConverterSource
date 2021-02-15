@@ -93,7 +93,11 @@
 		"string_view": "cpp",
 		"shared_mutex": "cpp",
 		"cfenv": "cpp",
-		"bit": "cpp"
+		"bit": "cpp",
+		"*.ipp": "cpp",
+		"hash_set": "cpp",
+		"*.txx": "cpp",
+		"unordered_set": "cpp"
 	},
 	"files.trimTrailingWhitespace": false,
 	"editor.fontSize": 28,
