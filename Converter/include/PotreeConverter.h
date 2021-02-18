@@ -173,7 +173,8 @@ inline vector<Attribute> computeOutputAttributes(LasHeader& header, bool include
 	list.insert(list.end(), extraAttributes.begin(), extraAttributes.end());
 
 	if (include_index) {
-		list.insert(list.begin() + 1, pcindex);
+		// list.insert(list.begin() + 1, pcindex);
+		list = { xyz, pcindex, intensity, classification };
 	}
 
 	return list;
