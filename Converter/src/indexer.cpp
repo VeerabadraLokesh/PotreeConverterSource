@@ -871,6 +871,7 @@ void buildHierarchy(Indexer* indexer, Node* node, shared_ptr<Buffer> points, int
 			int64_t numPointsInBox = subject->numPoints;
 			int64_t numUniquePoints = counters.size();
 			int64_t numDuplicates = numPointsInBox - numUniquePoints;
+			// cout << "number of duplicates: " << numDuplicates << endl;
 
 			if (numDuplicates < maxPointsPerChunk / 2) {
 				// few uniques, just unfavouribly distributed points
@@ -1277,6 +1278,51 @@ shared_ptr<Buffer> compress(Node* node, Attributes attributes) {
 
 
 
+static shared_ptr<Buffer> BrotliCompress(shared_ptr<Buffer> buffer) {
+	shared_ptr<Buffer> out;
+
+	int quality = 6;
+	int lgwin = BROTLI_DEFAULT_WINDOW;
+	auto mode = BROTLI_DEFAULT_MODE;
+	uint8_t* input_buffer = buffer->data_u8;
+	size_t input_size = buffer->size;
+
+	size_t encoded_size = input_size * 1.5 + 1'000;
+	shared_ptr<Buffer> outputBuffer = make_shared<Buffer>(encoded_size);
+	uint8_t* encoded_buffer = outputBuffer->data_u8;
+
+	BROTLI_BOOL success = BROTLI_FALSE;
+
+	for (int i = 0; i < 5; i++) {
+		success = BrotliEncoderCompress(quality, lgwin, mode, input_size, input_buffer, &encoded_size, encoded_buffer);
+
+		if (success == BROTLI_TRUE) {
+			break;
+		} else {
+			encoded_size = (encoded_size + 1024) * 1.5;
+			outputBuffer = make_shared<Buffer>(encoded_size);
+			encoded_buffer = outputBuffer->data_u8;
+
+			logger::WARN("reserved encoded_buffer size was too small. Trying again with size " + formatNumber(encoded_size) + ".");
+		}
+	}
+
+	if (success == BROTLI_FALSE) {
+		stringstream ss;
+		ss << "failed to compress buffer. aborting conversion." ;
+		logger::ERROR(ss.str());
+
+		exit(123);
+	}
+
+	out = make_shared<Buffer>(encoded_size);
+	memcpy(out->data, encoded_buffer, encoded_size);
+	// cout << "encoded size: " << encoded_size << endl;
+	return out;
+}
+
+
+
 Writer::Writer(Indexer* indexer) {
 	this->indexer = indexer;
 
@@ -1295,6 +1341,10 @@ int64_t Writer::backlogSizeMB() {
 
 	return backlogMB;
 }
+
+auto contains = [](auto map, auto key) {
+	return map.find(key) != map.end();
+};
 
 void Writer::writeAndUnload(Node* node) {
 	auto attributes = indexer->attributes;
@@ -1354,6 +1404,21 @@ void Writer::writeAndUnload(Node* node) {
 	}	
 
 	memcpy(buffer->data_char + targetOffset, sourceBuffer->data, byteSize);
+
+	string nodeName = node->name;
+	int16_t nodeIndex;
+	if (!contains(indexer->nodeNameNodeIndexMap, nodeName)) {
+		nodeIndex = indexer->nodeNameNodeIndexMap.size();
+		indexer->nodeNameNodeIndexMap[nodeName] = nodeIndex;
+	}
+	nodeIndex = indexer->nodeNameNodeIndexMap[nodeName];
+	u_int64_t numPoints = node->points->size/attributes.bytes;
+	for (u_int64_t i = 0; i < numPoints; i++) {
+		u_int32_t pointIndex;
+		u_int64_t offset = i * attributes.bytes;
+		memcpy(&pointIndex, node->points->data_u8 + offset + 12, 4);
+		indexer->pointIndexNodeIndexMap[pointIndex] = nodeIndex;
+	}
 
 	node->points = nullptr;
 }
@@ -1468,6 +1533,8 @@ void doIndexing(string targetDir, State& state, Options& options, Sampler& sampl
 		indexer.writer->writeAndUnload(node);
 	};
 
+	indexer.pointIndexNodeIndexMap.resize(state.pointsTotal, -1);
+
 	atomic_int64_t activeThreads = 0;
 	mutex mtx_nodes;
 	vector<shared_ptr<Node>> nodes;
@@ -1568,6 +1635,27 @@ void doIndexing(string targetDir, State& state, Options& options, Sampler& sampl
 	indexer.writer->closeAndWait();
 
 	printElapsedTime("flushing", tStart);
+
+	string pointIndexNodeIndexMapPath = targetDir + "/pointmapping.bin";
+	string nodeNameNodeIndexMapPath = targetDir + "/mappingmetadata.json";
+	
+	int64_t bufferSize = state.pointsTotal * sizeof(int16_t);
+	shared_ptr<Buffer> mapBuffer = make_shared<Buffer>(bufferSize);
+	memcpy(mapBuffer->data, &indexer.pointIndexNodeIndexMap[0], bufferSize);
+	// mapBuffer->write(&indexer.pointIndexNodeIndexMap[0], bufferSize);
+
+	auto compressedBuffer = BrotliCompress(mapBuffer);
+	// cout << "compressedBuffer size: " << compressedBuffer->size << endl;
+
+	ofstream fout(pointIndexNodeIndexMapPath, ios::out | ios::binary);
+	// fout.write((char*)&indexer.pointIndexNodeIndexMap[0], bufferSize);
+	fout.write(compressedBuffer->data_char, compressedBuffer->size);
+	fout.close();
+	cout << "Number of Nodes: " << indexer.nodeNameNodeIndexMap.size() << endl;
+	ofstream foutjson(nodeNameNodeIndexMapPath, ios::out);
+	json jsNodeMap = indexer.nodeNameNodeIndexMap;
+	foutjson << jsNodeMap;
+	foutjson.close();
 
 	string hierarchyPath = targetDir + "/hierarchy.bin";
 	Hierarchy hierarchy = indexer.createHierarchy(hierarchyPath);

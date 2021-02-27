@@ -44,7 +44,7 @@ namespace indexer{
 
 	//constexpr int numSampleThreads = 10;
 	//constexpr int numFlushThreads = 36;
-	constexpr int maxPointsPerChunk = 100'000;
+	constexpr int maxPointsPerChunk = 500'000;
 
 	inline int numSampleThreads() {
 		return getCpuData().numProcessors;
@@ -138,6 +138,9 @@ namespace indexer{
 		shared_ptr<Node> root;
 
 		shared_ptr<Writer> writer;
+
+		vector<int16_t> pointIndexNodeIndexMap;
+		std::map<string, int16_t> nodeNameNodeIndexMap;
 
 		vector<shared_ptr<Node>> detachedParts;
 
