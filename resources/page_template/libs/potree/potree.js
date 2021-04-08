@@ -88083,7 +88083,7 @@ ENDSEC
 				this.setShowBoundingBox(false);
 				this.setFreeze(false);
 				this.setControls(this.orbitControls);
-				this.setBackground('gradient');
+				this.setBackground('white');
 
 				this.scaleFactor = 1;
 

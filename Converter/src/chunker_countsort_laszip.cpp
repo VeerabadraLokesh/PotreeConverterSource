@@ -512,7 +512,7 @@ namespace chunker_countsort_laszip {
 
 				attributeOffset += attribute.size;
 
-				if (attribute.name == "position") {
+				if (attribute.name == "position" || attribute.name == "pc_index") {
 					continue;
 				}
 
@@ -672,8 +672,11 @@ namespace chunker_countsort_laszip {
 		mutex mtx_push_point;
 
 		printElapsedTime("distributePoints1", tStart);
+		// cout << outputAttributes.bytes << endl;
 
 		auto processor = [&mtx_push_point, &counters, targetDir, &state, tStart, &outputAttributes](shared_ptr<Task> task) {
+
+			// cout << task->firstPoint << endl;
 
 			auto path = task->path;
 			auto batchSize = task->batchSize;
@@ -765,11 +768,17 @@ namespace chunker_countsort_laszip {
 						aPosition->max.y = std::max(aPosition->max.y, y);
 						aPosition->max.z = std::max(aPosition->max.z, z);
 					}
-
+					// cout << "before copying index" << endl;
+					{
+						__uint32_t pc_index = __uint32_t(task->firstPoint + i);
+						memcpy(data + offset + 12, &pc_index, 4);
+					}
+					// cout << "copied index" << endl;
 					// copy other attributes
 					for (auto& handler : attributeHandlers) {
 						handler(offset);
 					}
+					// cout << "copied other stuff" << endl;
 
 				}
 
@@ -921,10 +930,13 @@ namespace chunker_countsort_laszip {
 			int64_t numRead = 0;
 
 			vector<Source> tmpSources = { source };
-			Attributes inputAttributes = computeOutputAttributes(tmpSources, {});
+			Attributes inputAttributes = computeOutputAttributes(tmpSources, {}, false);
+
+			outputAttributes.get("pc_index")->min.x = 0;
+			outputAttributes.get("pc_index")->max.x = pointsLeft;
 
 			while (pointsLeft > 0) {
-
+				// cout << pointsLeft << endl;
 				int64_t numToRead;
 				if (pointsLeft < maxBatchSize) {
 					numToRead = pointsLeft;
@@ -951,16 +963,24 @@ namespace chunker_countsort_laszip {
 
 				numRead += numToRead;
 			}
-
+			// cout << "done with points" << endl;
 			laszip_close_reader(laszip_reader);
 			laszip_destroy(laszip_reader);
+			// cout << "done with points :p" << endl;
 
 		}
 
+		// cout << "done with points :p" << endl;
 		pool.close();
+		// cout << "done with points :p" << endl;
 		writer->join();
 
+		// cout << "done with points" << endl;
+
 		delete writer;
+
+		
+		// cout << "done with pointss" << endl;
 
 		auto duration = now() - tStart;
 		cout << "finished creating chunks in " << formatNumber(duration) << "s" << endl;

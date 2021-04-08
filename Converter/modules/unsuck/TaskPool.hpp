@@ -95,12 +95,16 @@ public:
 		if (isClosed) {
 			return;
 		}
-
+		// cout << "closing" << endl;
 		isClosed = true;
-
+		// cout << "closing thread" << endl;
+		// int count = 0;
 		for (thread& t : threads) {
+			// cout << "closing thread: " << count << endl;
 			t.join();
+			// count++;
 		}
+		// cout << "closing threads done" << endl;
 	}
 
 	bool isWorkDone() {
