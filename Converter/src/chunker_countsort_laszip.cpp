@@ -769,11 +769,13 @@ namespace chunker_countsort_laszip {
 						aPosition->max.z = std::max(aPosition->max.z, z);
 					}
 					// cout << "before copying index" << endl;
+
 					{
 						__uint32_t pc_index = __uint32_t(task->firstPoint + i);
 						memcpy(data + offset + 12, &pc_index, 4);
 					}
 					// cout << "copied index" << endl;
+
 					// copy other attributes
 					for (auto& handler : attributeHandlers) {
 						handler(offset);
